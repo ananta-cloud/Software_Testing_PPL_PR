@@ -39,9 +39,9 @@ $(document).ready(function(){
             contentType: 'application/json',
             data: JSON.stringify(param)
 	    }).then(function(data) {
-	    	window.location.href = '/';
+	    	window.location.href = '/page/index';
 	    }, function(err) {
-	    	alert(err.responseJSON);
+			alert(JSON.stringify(err));
 	    });
 	});
 });
