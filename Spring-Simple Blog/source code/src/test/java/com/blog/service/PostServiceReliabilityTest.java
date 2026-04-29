@@ -14,6 +14,7 @@ import java.util.Date;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
@@ -166,49 +167,54 @@ class PostServiceReliabilityTest {
         }
 
         /**
-         * WB-06 — Branch: title≠empty=true, content=empty=false
-         * Failure Rate: partial update hanya pada title
+         * WB-06 
          */
         @Test
-        @DisplayName("WB-06 | Title terisi, Content kosong → hanya title yang diupdate")
-        void wb06_updatePost_onlyTitleFilled_shouldUpdateTitleOnly() {
+        @DisplayName("WB-06 | updatePost() dipanggil berulang partial input → sistem tetap stabil (Failure Rate)")
+        void wb06_updatePost_repeatedPartialTitle_shouldRemainStable() {
             Long id = 1L;
             Post existing = buildPost(id, "Judul Lama", "Konten Lama");
-            Post updateReq = buildPost(id, "Judul Baru", ""); // content kosong
 
             when(jpaRepository.findOneById(id)).thenReturn(existing);
             when(jpaRepository.save(existing)).thenReturn(existing);
 
-            boolean result = postService.updatePost(updateReq);
+            // Panggil 5x berturut-turut dengan hanya title yang berubah
+            for (int i = 1; i <= 5; i++) {
+                Post updateReq = buildPost(id, "Judul Update ke-" + i, "");
+                boolean result = postService.updatePost(updateReq);
 
-            assertTrue(result, "[WB-06] updatePost harus return TRUE");
-            assertEquals("Judul Baru", existing.getTitle(),
-                    "[WB-06] Title harus berubah menjadi 'Judul Baru'");
-            assertEquals("Konten Lama", existing.getContent(),
-                    "[WB-06] Content tidak boleh berubah karena input content kosong");
+                assertTrue(result, "[WB-06] Iterasi ke-" + i + " harus return TRUE");
+                assertEquals("Judul Update ke-" + i, existing.getTitle(),
+                        "[WB-06] Title harus terupdate di iterasi ke-" + i);
+                assertEquals("Konten Lama", existing.getContent(),
+                        "[WB-06] Content tidak boleh korup di iterasi ke-" + i);
+            }
+            verify(jpaRepository, times(5)).save(existing);
         }
 
         /**
-         * WB-07 — Branch: title=empty=false, content≠empty=true
-         * Failure Rate: partial update hanya pada content
+         * WB-07
          */
         @Test
-        @DisplayName("WB-07 | Title kosong, Content terisi → hanya content yang diupdate")
-        void wb07_updatePost_onlyContentFilled_shouldUpdateContentOnly() {
+        @DisplayName("WB-07 | updatePost() dengan title & content null → tidak NullPointerException (Recovery Capability)")
+        void wb07_updatePost_nullFields_shouldNotThrowNPE() {
             Long id = 1L;
             Post existing = buildPost(id, "Judul Lama", "Konten Lama");
-            Post updateReq = buildPost(id, "", "Konten Baru"); // title kosong
+            Post updateReq = buildPost(id, null, null);
 
             when(jpaRepository.findOneById(id)).thenReturn(existing);
             when(jpaRepository.save(existing)).thenReturn(existing);
 
-            boolean result = postService.updatePost(updateReq);
+            boolean result = assertDoesNotThrow(
+                    () -> postService.updatePost(updateReq),
+                    "[WB-07] updatePost() tidak boleh throw NullPointerException saat field null"
+            );
 
-            assertTrue(result, "[WB-07] updatePost harus return TRUE");
+            assertTrue(result, "[WB-07] updatePost() harus return TRUE meski input null");
             assertEquals("Judul Lama", existing.getTitle(),
-                    "[WB-07] Title tidak boleh berubah karena input title kosong");
-            assertEquals("Konten Baru", existing.getContent(),
-                    "[WB-07] Content harus berubah menjadi 'Konten Baru'");
+                    "[WB-07] Title tidak boleh berubah karena input null");
+            assertEquals("Konten Lama", existing.getContent(),
+                    "[WB-07] Content tidak boleh berubah karena input null");
         }
 
         /**
